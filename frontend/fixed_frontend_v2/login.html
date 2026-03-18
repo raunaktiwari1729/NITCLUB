@@ -346,7 +346,7 @@
     btn.classList.add('loading'); btn.disabled = true; btn.textContent = 'Sending…';
     
     try {
-      const res = await apiRequest('/api/auth/reset-password-request', 'POST', { email });
+      const res = await api.post('/api/auth/reset-password-request', { email }, false);
       resetRequestEmail = email;
       
       // Use EmailJS to send the reset OTP
@@ -374,11 +374,11 @@
     btn.classList.add('loading'); btn.disabled = true; btn.textContent = 'Resetting…';
     
     try {
-      await apiRequest('/api/auth/reset-password-confirm', 'POST', {
+      await api.post('/api/auth/reset-password-confirm', {
         email: resetRequestEmail,
         otp: otp,
         new_password: new_password
-      });
+      }, false);
       toast('Password reset successfully! ✨');
       // Set email in literal login so they can just type password
       document.getElementById('email').value = resetRequestEmail;

@@ -30,6 +30,7 @@ const api = {
   club:       id   => api.get(`/api/clubs/${id}`,   false),
   updateClub: (id,b) => api.patch(`/api/clubs/${id}`, b),
   createClub: b    => api.post('/api/clubs', b),
+  deleteClub: id   => api.del(`/api/clubs/${id}`),
 
   // Quiz
   quizQuestions: () => api.get('/api/quiz/questions', false),

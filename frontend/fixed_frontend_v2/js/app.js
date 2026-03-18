@@ -195,7 +195,7 @@ function renderNavbar(activePage = '') {
         { href:'/messages.html', label:'Messages', id:'messages', badge:unread },
         { href:'/dashboard.html',label:'Dashboard',id:'dashboard' },
       ] : []),
-      ...(user?.role==='club_admin'||user?.role==='owner' ? [{href:'/admin.html',label:'Admin',id:'admin'}] : []),
+      ...(user?.role==='club_admin'||user?.role==='owner'||user?.role==='faculty_incharge' ? [{href:'/admin.html',label:'Admin',id:'admin'}] : []),
     ];
     navEl.innerHTML = `
       <a href="/index.html" class="navbar-brand">

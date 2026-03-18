@@ -69,7 +69,7 @@ renderNavbar('events');
   initChatWidget();
 let allEvents=[], currentDomain='';
 const user=Auth.getUser();
-if(user?.role==='club_admin'||user?.role==='owner') document.getElementById('admin-btn').style.display='block';
+if(user?.role==='club_admin'||user?.role==='owner'||user?.role==='faculty_incharge') document.getElementById('admin-btn').style.display='block';
 
 async function loadEvents(){
   try{ allEvents=await api.events(); renderEvents(); }
@@ -98,7 +98,7 @@ function evCard(e,past=false){
   const d=new Date(e.event_date+'T00:00:00');
   const day=d.toLocaleDateString('en-IN',{day:'2-digit'}), month=d.toLocaleDateString('en-IN',{month:'short'});
   const col=domainColor(e.domain);
-  const canAdmin=user?.role==='club_admin'||user?.role==='owner';
+  const canAdmin=user?.role==='club_admin'||user?.role==='owner'||user?.role==='faculty_incharge';
   return `<div class="event-card" style="${past?'opacity:.55':''}">
     <div class="event-date-box" style="border-color:${col}22"><div class="event-day" style="color:${col}">${day}</div><div class="event-month">${month}</div></div>
     <div class="event-body">

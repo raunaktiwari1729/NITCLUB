@@ -101,7 +101,7 @@ async def optional_user(cred: HTTPAuthorizationCredentials = Depends(security)):
     return await db.users.find_one({"_id": p["sub"]}) if p else None
 
 async def require_club_admin(u=Depends(current_user)):
-    if u.get("role") not in ("club_admin", "owner"):
+    if u.get("role") not in ("club_admin", "owner", "faculty_incharge"):
         raise HTTPException(403, "Club admin access required")
     return u
 
@@ -373,8 +373,8 @@ async def get_club(club_id: str):
 
 @app.patch("/api/clubs/{club_id}")
 async def update_club(club_id: str, d: ClubUpdateModel, u=Depends(require_club_admin)):
-    # Owners can edit any club; club_admins can only edit their own assigned club
-    if u.get("role") != "owner":
+    # Owners and faculty can edit any club; club_admins can only edit their own assigned club
+    if u.get("role") not in ("owner", "faculty_incharge"):
         if u.get("managed_club_id") != club_id:
             raise HTTPException(403, "You can only edit your own club")
     upd = {k: v for k, v in d.dict().items() if v is not None}
@@ -382,6 +382,14 @@ async def update_club(club_id: str, d: ClubUpdateModel, u=Depends(require_club_a
     await db.clubs.update_one({"_id": club_id}, {"$set": upd})
     c = await db.clubs.find_one({"_id": club_id})
     return clean(c)
+
+@app.delete("/api/clubs/{club_id}")
+async def delete_club(club_id: str, u=Depends(require_club_admin)):
+    if u.get("role") not in ("owner", "faculty_incharge"):
+        if u.get("managed_club_id") != club_id:
+            raise HTTPException(403, "You can only delete your own club")
+    await db.clubs.delete_one({"_id": club_id})
+    return {"ok": True}
 
 @app.post("/api/clubs")
 async def create_club(d: ClubCreateModel, u=Depends(require_club_admin)):
@@ -1022,8 +1030,8 @@ class CreateStaffModel(BaseModel):
     department: Optional[str] = ""  # for faculty
 
 async def require_owner(u=Depends(current_user)):
-    if u.get("role") != "owner":
-        raise HTTPException(403, "Owner access required")
+    if u.get("role") not in ("owner", "club_admin", "faculty_incharge"):
+        raise HTTPException(403, "Owner, Admin or Faculty access required")
     return u
 
 @app.post("/api/owner/staff")
@@ -1031,6 +1039,16 @@ async def create_staff(d: CreateStaffModel, u=Depends(require_owner)):
     """Owner creates a club_admin or faculty_incharge account directly."""
     email = d.email.lower().strip()
     role  = d.role.lower()
+
+    if u.get("role") == "club_admin":
+        if role != "club_admin":
+            raise HTTPException(403, "Club admins can only create other club admins")
+        if not d.club_id or d.club_id != u.get("managed_club_id"):
+            raise HTTPException(403, "You can only assign admins to your own club")
+    
+    if u.get("role") == "faculty_incharge":
+        # Faculty can create club_admins for any club, or other faculty
+        pass
 
     if role not in ("club_admin", "faculty_incharge"):
         raise HTTPException(400, "Role must be club_admin or faculty_incharge")
@@ -1067,6 +1085,11 @@ async def list_staff(u=Depends(require_owner)):
     staff = await db.users.find({
         "role": {"$in": ["club_admin", "faculty_incharge"]}
     }).to_list(200)
+    
+    if u.get("role") == "club_admin":
+        staff = [s for s in staff if s.get("managed_club_id") == u.get("managed_club_id") and s.get("role") == "club_admin"]
+    # Owners and FICs see all staff (owners see owner accounts too, but owners aren't in this list usually)
+        
     result = []
     for s in staff:
         item = fmt_user(s)
@@ -1085,6 +1108,13 @@ async def list_staff(u=Depends(require_owner)):
 @app.patch("/api/owner/staff/{user_id}/password")
 async def reset_staff_password(user_id: str, data: dict, u=Depends(require_owner)):
     """Owner resets a staff member's password."""
+    target = await db.users.find_one({"_id": user_id})
+    if not target:
+        raise HTTPException(404, "User not found")
+    if u.get("role") == "club_admin":
+        if target.get("role") != "club_admin" or target.get("managed_club_id") != u.get("managed_club_id"):
+            raise HTTPException(403, "You can only manage admins from your own club")
+            
     new_pw = data.get("password", "")
     if len(new_pw) < 6:
         raise HTTPException(400, "Password must be at least 6 characters")
@@ -1109,6 +1139,9 @@ async def delete_staff(user_id: str, u=Depends(require_owner)):
     target = await db.users.find_one({"_id": user_id})
     if not target:
         raise HTTPException(404, "User not found")
+    if u.get("role") == "club_admin":
+        if target.get("role") != "club_admin" or target.get("managed_club_id") != u.get("managed_club_id"):
+            raise HTTPException(403, "You can only delete admins from your own club")
     if target.get("role") == "owner":
         raise HTTPException(403, "Cannot delete owner account")
     # Unassign from club
